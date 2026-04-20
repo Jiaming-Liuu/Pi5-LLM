@@ -1,6 +1,6 @@
 """
 Full benchmark suite: HellaSwag + MMLU + TruthfulQA + WikiText-2
-Results saved to results/benchmark_<model>_<timestamp>.json
+Results saved to results/benchmarks/benchmark_<model>_<timestamp>.json
 
 Usage:
   python experiments/eval_benchmark.py
@@ -39,7 +39,7 @@ SAVE_INCORRECT  = args.save_incorrect
 SAVE_ALL        = args.save_all
 N_CTX       = 2048
 N_THREADS   = 4
-RESULTS_DIR = Path("results")
+RESULTS_DIR = Path("results/benchmarks")
 CHOICES     = ["A", "B", "C", "D"]
 
 MMLU_SUBJECTS = [
@@ -348,7 +348,7 @@ def main():
         print(f"Model not found: {MODEL_PATH}")
         return
 
-    RESULTS_DIR.mkdir(exist_ok=True)
+    RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
     print(f"Loading {MODEL_PATH.name} ...")
     t0 = time.perf_counter()
