@@ -1,0 +1,44 @@
+{
+  "model": "Qwen_Qwen3.5-2B-bf16.gguf",
+  "model_family": "qwen",
+  "timestamp": "2026-04-23T21:16:38.522044",
+  "load_time_s": 5.96,
+  "n_ctx": 2048,
+  "n_threads": 8,
+  "n_gpu_layers": -1,
+  "n_per_dataset": 100,
+  "seed": 42,
+  "datasets": {
+    "hellaswag": {
+      "dataset": "hellaswag",
+      "shot": "zero-shot",
+      "accuracy_%": 39.0,
+      "correct": 39,
+      "n": 100,
+      "records": []
+    },
+    "mmlu": {
+      "dataset": "mmlu",
+      "shot": "5-shot",
+      "subjects": [
+        "high_school_geography",
+        "world_religions",
+        "elementary_mathematics",
+        "high_school_biology",
+        "astronomy"
+      ],
+      "accuracy_%": 60.0,
+      "correct": 60,
+      "n": 100,
+      "records": []
+    },
+    "truthfulqa": {
+      "dataset": "truthfulqa",
+      "shot": "zero-shot",
+      "accuracy_%": 57.0,
+      "correct": 57,
+      "n": 100,
+      "records": []
+    }
+  }
+}

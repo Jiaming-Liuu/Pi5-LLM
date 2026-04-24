@@ -1,17 +1,19 @@
 {
-  "model": "Meta-Llama-3-8B-Instruct-Q4_K_M.gguf",
-  "timestamp": "2026-04-20T00:06:39.615677",
-  "load_time_s": 98.07,
+  "model": "Llama-3.2-3B-Instruct-Q8_0.gguf",
+  "model_family": "llama3",
+  "timestamp": "2026-04-23T21:40:40.165095",
+  "load_time_s": 6.16,
   "n_ctx": 2048,
-  "n_threads": 4,
+  "n_threads": 8,
+  "n_gpu_layers": -1,
   "n_per_dataset": 100,
   "seed": 42,
   "datasets": {
     "hellaswag": {
       "dataset": "hellaswag",
       "shot": "zero-shot",
-      "accuracy_%": 65.0,
-      "correct": 65,
+      "accuracy_%": 38.0,
+      "correct": 38,
       "n": 100,
       "records": []
     },
@@ -25,24 +27,17 @@
         "high_school_biology",
         "astronomy"
       ],
-      "accuracy_%": 68.0,
-      "correct": 68,
+      "accuracy_%": 20.0,
+      "correct": 20,
       "n": 100,
       "records": []
     },
     "truthfulqa": {
       "dataset": "truthfulqa",
       "shot": "zero-shot",
-      "accuracy_%": 41.0,
-      "correct": 41,
+      "accuracy_%": 40.0,
+      "correct": 40,
       "n": 100,
-      "records": []
-    },
-    "wikitext2": {
-      "dataset": "wikitext2",
-      "metric": "perplexity",
-      "mean_perplexity": 17.4997,
-      "n_chunks": 100,
       "records": []
     }
   }
