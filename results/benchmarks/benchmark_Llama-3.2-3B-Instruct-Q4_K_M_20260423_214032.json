@@ -1,0 +1,44 @@
+{
+  "model": "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+  "model_family": "llama3",
+  "timestamp": "2026-04-23T21:37:56.202802",
+  "load_time_s": 2.64,
+  "n_ctx": 2048,
+  "n_threads": 8,
+  "n_gpu_layers": -1,
+  "n_per_dataset": 100,
+  "seed": 42,
+  "datasets": {
+    "hellaswag": {
+      "dataset": "hellaswag",
+      "shot": "zero-shot",
+      "accuracy_%": 34.0,
+      "correct": 34,
+      "n": 100,
+      "records": []
+    },
+    "mmlu": {
+      "dataset": "mmlu",
+      "shot": "5-shot",
+      "subjects": [
+        "high_school_geography",
+        "world_religions",
+        "elementary_mathematics",
+        "high_school_biology",
+        "astronomy"
+      ],
+      "accuracy_%": 22.0,
+      "correct": 22,
+      "n": 100,
+      "records": []
+    },
+    "truthfulqa": {
+      "dataset": "truthfulqa",
+      "shot": "zero-shot",
+      "accuracy_%": 36.0,
+      "correct": 36,
+      "n": 100,
+      "records": []
+    }
+  }
+}

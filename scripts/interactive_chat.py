@@ -3,8 +3,8 @@ Interactive chat with a local GGUF model via llama-cpp-python.
 Type your prompt and press Enter. Type 'quit' to stop and save results JSON.
 
 Usage:
-  python experiments/interactive_chat.py
-  python experiments/interactive_chat.py --model models/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf
+  python scripts/interactive_chat.py
+  python scripts/interactive_chat.py --model models/Meta-Llama-3-8B-Instruct-Q4_K_M.gguf
 """
 
 import argparse
@@ -30,10 +30,46 @@ args = parser.parse_args()
 MODEL_PATH = Path(args.model)
 RESULTS_DIR = Path("results")
 
-SYSTEM_PROMPT = "You are a helpful assistant running locally on a Raspberry Pi 5, answer in a concise manner."
-# SYSTEM_PROMPT = ""
+# SYSTEM_PROMPT = "You are a helpful assistant running locally on a Raspberry Pi 5, answer in a concise manner."
+SYSTEM_PROMPT = ""
+
+def detect_family(p: Path) -> str:
+    name = p.name.lower()
+    if "qwen" in name:
+        return "qwen"
+    if "mistral" in name or "ministral" in name:
+        return "mistral"
+    return "llama3"
+
+
+FAMILY = detect_family(MODEL_PATH)
+STOP_TOKENS = {
+    "llama3":  ["<|eot_id|>", "<|end_of_text|>"],
+    "qwen":    ["<|im_end|>"],
+    "mistral": ["</s>", "[INST]"],
+}[FAMILY]
+
 
 def build_prompt(history: list[dict]) -> str:
+    if FAMILY == "qwen":
+        out = f"<|im_start|>system\n{SYSTEM_PROMPT}<|im_end|>\n"
+        for msg in history:
+            out += f"<|im_start|>{msg['role']}\n{msg['content']}<|im_end|>\n"
+        out += "<|im_start|>assistant\n"
+        return out
+    if FAMILY == "mistral":
+        # Mistral v1: system injected into first user turn
+        turns = []
+        for i, msg in enumerate(history):
+            if msg["role"] == "user":
+                content = msg["content"]
+                if i == 0:
+                    content = f"{SYSTEM_PROMPT}\n\n{content}"
+                turns.append(f"[INST] {content} [/INST]")
+            else:
+                turns.append(msg["content"] + "</s>")
+        return "<s>" + " ".join(turns)
+    # llama3
     out = f"<|start_header_id|>system<|end_header_id|>\n{SYSTEM_PROMPT}<|eot_id|>"
     for msg in history:
         out += f"<|start_header_id|>{msg['role']}<|end_header_id|>\n{msg['content']}<|eot_id|>"
@@ -141,7 +177,7 @@ def main():
         token_count      = 0
 
         for chunk in llm(prompt, max_tokens=512, stream=True, echo=False,
-                         stop=["<|eot_id|>", "<|end_of_text|>"]):
+                         stop=STOP_TOKENS):
             token = chunk["choices"][0]["text"]
             if first_token_time is None and token:
                 first_token_time = time.perf_counter()
