@@ -6,9 +6,9 @@ All models download to `models/`. Run from the project root with the venv active
 
 ## Llama-3.2-1B-Instruct
 
-| Quant | Size | Status |
-|-------|------|--------|
-| f16   | ~2.9 GB | ✓ downloaded |
+| Quant | Size |
+|-------|------|
+| f16   | ~2.9 GB |
 
 ```bash
 hf download bartowski/Llama-3.2-1B-Instruct-GGUF \
@@ -22,11 +22,11 @@ hf download bartowski/Llama-3.2-1B-Instruct-GGUF \
 
 Source: `bartowski/Qwen_Qwen3.5-2B-GGUF`
 
-| Quant   | Size    | Status |
-|---------|---------|--------|
-| Q4_K_M  | 1.33 GB | ✓ downloaded |
-| Q8_0    | 2.02 GB | ✓ downloaded |
-| bf16    | 3.78 GB | ✓ downloaded |
+| Quant   | Size    |
+|---------|---------|
+| Q4_K_M  | ~1.33 GB |
+| Q8_0    | ~2.02 GB |
+| bf16    | ~3.78 GB |
 
 ```bash
 # Q4_K_M
@@ -49,11 +49,11 @@ hf download bartowski/Qwen_Qwen3.5-2B-GGUF \
 
 ## Llama-3.2-3B-Instruct
 
-| Quant   | Size    | Status |
-|---------|---------|--------|
-| Q4_K_M  | ~2.0 GB | pending |
-| Q8_0    | ~3.4 GB | pending |
-| f16     | ~6.4 GB | pending |
+| Quant   | Size    |
+|---------|---------|
+| Q4_K_M  | ~2.0 GB |
+| Q8_0    | ~3.4 GB |
+| f16     | ~6.4 GB |
 
 ```bash
 # Q4_K_M
@@ -78,11 +78,11 @@ hf download bartowski/Llama-3.2-3B-Instruct-GGUF \
 
 Source: `mistralai/Ministral-3-3B-Instruct-2512-GGUF` (official)
 
-| Quant   | Size    | Status |
-|---------|---------|--------|
-| Q4_K_M  | 2.15 GB | pending |
-| Q8_0    | 3.65 GB | pending |
-| bf16    | 6.87 GB | pending |
+| Quant   | Size    |
+|---------|---------|
+| Q4_K_M  | ~2.15 GB |
+| Q8_0    | ~3.65 GB |
+| bf16    | ~6.87 GB |
 
 ```bash
 # Q4_K_M
@@ -105,10 +105,10 @@ hf download mistralai/Ministral-3-3B-Instruct-2512-GGUF \
 
 ## Llama-3-8B-Instruct
 
-| Quant   | Size    | Status |
-|---------|---------|--------|
-| Q4_K_M  | 4.7 GB  | pending |
-| Q8_0    | 8.5 GB  | pending |
+| Quant   | Size    |
+|---------|---------|
+| Q4_K_M  | ~4.7 GB  |
+| Q8_0    | ~8.5 GB  |
 
 ```bash
 # Q4_K_M
