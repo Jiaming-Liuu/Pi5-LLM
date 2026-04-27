@@ -105,19 +105,13 @@ hf download mistralai/Ministral-3-3B-Instruct-2512-GGUF \
 
 ## Llama-3-8B-Instruct
 
-| Quant   | Size    |
-|---------|---------|
-| Q4_K_M  | ~4.7 GB  |
-| Q8_0    | ~8.5 GB  |
+| Quant   | Size    | Notes |
+|---------|---------|-------|
+| Q4_K_M  | ~4.7 GB | Upper bound baseline only — too slow for interactive use |
 
 ```bash
-# Q4_K_M
+# Q4_K_M (upper bound baseline only)
 hf download bartowski/Meta-Llama-3-8B-Instruct-GGUF \
   --include "Meta-Llama-3-8B-Instruct-Q4_K_M.gguf" \
-  --local-dir models/
-
-# Q8_0
-hf download bartowski/Meta-Llama-3-8B-Instruct-GGUF \
-  --include "Meta-Llama-3-8B-Instruct-Q8_0.gguf" \
   --local-dir models/
 ```

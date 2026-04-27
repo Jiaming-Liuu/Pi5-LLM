@@ -1,5 +1,5 @@
 """
-Efficiency benchmark: fixed prompts → tok/s, TTFT, load time, RAM, CPU, power.
+Efficiency benchmark: fixed prompts → tok/s, TTFT, load time, RAM, CPU, power, temp.
 Results saved to results/efficiency/efficiency_<model>_<timestamp>.json
 
 Usage:
@@ -59,6 +59,59 @@ PROMPTS = [
 ]
 
 
+def detect_family(p: Path) -> str:
+    name = p.name.lower()
+    if "qwen" in name:
+        return "qwen"
+    if "mistral" in name or "ministral" in name:
+        return "mistral"
+    return "llama3"
+
+
+FAMILY = detect_family(MODEL_PATH)
+STOP_TOKENS = {
+    "llama3":  ["<|eot_id|>"],
+    "qwen":    ["<|im_end|>"],
+    "mistral": ["</s>"],
+}[FAMILY]
+
+
+def build_prompt(user_text: str) -> str:
+    system = "You are a helpful assistant running locally on a Raspberry Pi 5, answer concisely."
+    if FAMILY == "qwen":
+        return (
+            f"<|im_start|>system\n{system}<|im_end|>\n"
+            f"<|im_start|>user\n{user_text}<|im_end|>\n"
+            "<|im_start|>assistant\n"
+        )
+    if FAMILY == "mistral":
+        return f"<s>[INST] {system}\n\n{user_text} [/INST]"
+    return (
+        f"<|start_header_id|>system<|end_header_id|>\n{system}<|eot_id|>"
+        f"<|start_header_id|>user<|end_header_id|>\n{user_text}<|eot_id|>"
+        "<|start_header_id|>assistant<|end_header_id|>\n"
+    )
+
+
+def read_cpu_temp() -> float | None:
+    try:
+        return round(float(Path("/sys/class/thermal/thermal_zone0/temp").read_text()) / 1000, 1)
+    except Exception:
+        return None
+
+
+def try_read_power_w() -> float | None:
+    try:
+        import smbus2
+        bus = smbus2.SMBus(1)
+        raw = bus.read_word_data(0x40, 0x04)
+        bus.close()
+        raw = ((raw & 0xFF) << 8) | (raw >> 8)
+        return round(raw * 0.001, 3)
+    except Exception:
+        return None
+
+
 class ResourceMonitor:
     def __init__(self, interval: float = 0.25):
         self.interval = interval
@@ -90,35 +143,11 @@ class ResourceMonitor:
         def mean(lst): return round(sum(lst) / len(lst), 2) if lst else 0.0
         def peak(lst): return round(max(lst), 2) if lst else 0.0
         return {
-            "cpu_mean_%":    mean(self.cpu_samples),
-            "cpu_peak_%":    peak(self.cpu_samples),
-            "ram_mean_mb":   mean(self.ram_samples),
-            "ram_peak_mb":   peak(self.ram_samples),
+            "cpu_mean_%":  mean(self.cpu_samples),
+            "cpu_peak_%":  peak(self.cpu_samples),
+            "ram_mean_mb": mean(self.ram_samples),
+            "ram_peak_mb": peak(self.ram_samples),
         }
-
-
-def build_prompt(user_text: str) -> str:
-    return (
-        "<|start_header_id|>system<|end_header_id|>\n"
-        "You are a helpful assistant running locally on a Raspberry Pi 5, answer concisely.<|eot_id|>"
-        "<|start_header_id|>user<|end_header_id|>\n"
-        f"{user_text}<|eot_id|>"
-        "<|start_header_id|>assistant<|end_header_id|>\n"
-    )
-
-
-def try_read_power_w() -> float | None:
-    """Read battery/power draw from UPS HAT via I2C if available."""
-    try:
-        import smbus2
-        bus = smbus2.SMBus(1)
-        # INA219-style read — adjust register/address for your HAT
-        raw = bus.read_word_data(0x40, 0x04)
-        bus.close()
-        raw = ((raw & 0xFF) << 8) | (raw >> 8)
-        return round(raw * 0.001, 3)  # mW → W
-    except Exception:
-        return None
 
 
 def main():
@@ -128,6 +157,7 @@ def main():
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
+    print(f"Model family : {FAMILY}")
     print(f"Loading {MODEL_PATH.name} ...")
     t0 = time.perf_counter()
     llm = Llama(
@@ -150,40 +180,40 @@ def main():
 
     print(f"Running {len(PROMPTS)} fixed prompts (max_tokens={MAX_TOKENS})\n")
     for idx, user_text in enumerate(PROMPTS):
-        prompt      = build_prompt(user_text)
-        first_token = True
-        ttft        = None
-        tokens_out  = 0
-        t_start     = None
-        response    = []
+        prompt   = build_prompt(user_text)
+        response = []
+        ttft     = None
+        first    = True
+        temp_before = read_cpu_temp()
 
         monitor.start()
         power_before = try_read_power_w()
-
         t0 = time.perf_counter()
 
-        # Stream so we can record TTFT
         for chunk in llm(
             prompt,
             max_tokens=MAX_TOKENS,
             echo=False,
             stream=True,
-            stop=["<|eot_id|>"],
+            stop=STOP_TOKENS,
         ):
-            if first_token:
-                ttft = round(time.perf_counter() - t0, 3)
-                t_start = time.perf_counter()
-                first_token = False
+            if first:
+                ttft  = round(time.perf_counter() - t0, 3)
+                first = False
             text = chunk["choices"][0].get("text", "")
             response.append(text)
-            tokens_out += 1
 
         total_time  = round(time.perf_counter() - t0, 3)
         power_after = try_read_power_w()
         monitor.stop()
+        temp_after = read_cpu_temp()
 
-        gen_time = total_time - (ttft or 0)
-        toks_per_s = round(tokens_out / gen_time, 2) if gen_time > 0 else None
+        # Count tokens from the actual response text (not stream chunks)
+        response_text = "".join(response).strip()
+        tokens_out    = len(llm.tokenize(response_text.encode())) if response_text else 0
+
+        gen_time   = total_time - (ttft or 0)
+        toks_per_s = round(tokens_out / gen_time, 2) if gen_time > 0 and tokens_out > 0 else None
 
         power_w = None
         if power_before is not None and power_after is not None:
@@ -194,12 +224,14 @@ def main():
         rec = {
             "prompt_idx":   idx + 1,
             "prompt":       user_text,
-            "response":     "".join(response).strip(),
+            "response":     response_text,
             "tokens_out":   tokens_out,
             "ttft_s":       ttft,
             "gen_time_s":   round(gen_time, 3),
             "total_time_s": total_time,
             "toks_per_s":   toks_per_s,
+            "cpu_temp_before_c": temp_before,
+            "cpu_temp_after_c":  temp_after,
             "power_w":      power_w,
             **resources,
         }
@@ -207,11 +239,13 @@ def main():
         if toks_per_s is not None: all_toks.append(toks_per_s)
         if ttft       is not None: all_ttft.append(ttft)
 
+        temp_str = f"  temp={temp_after}°C" if temp_after else ""
         print(
             f"  [{idx+1:02d}/{len(PROMPTS)}] "
-            f"ttft={ttft:.2f}s  toks/s={toks_per_s or '?':>6}  "
-            f"ram_peak={resources['ram_peak_mb']:.0f}MB  "
+            f"ttft={ttft:.2f}s  toks/s={str(toks_per_s) or '?':>6}  "
+            f"ram={resources['ram_peak_mb']:.0f}MB  "
             f"cpu={resources['cpu_mean_%']:.0f}%"
+            f"{temp_str}"
         )
 
     def mean(lst): return round(sum(lst) / len(lst), 2) if lst else None
@@ -234,6 +268,7 @@ def main():
 
     output = {
         "model":        MODEL_PATH.name,
+        "model_family": FAMILY,
         "timestamp":    datetime.now().isoformat(),
         "load_time_s":  load_time,
         "n_ctx":        N_CTX,
