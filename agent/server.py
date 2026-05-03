@@ -120,9 +120,16 @@ MAX_STEPS = 10
 
 
 def turn(agent: Agent, user_msg: str, history: list[dict]) -> str:
+    """Run one user turn. Tool-call limits and repeat counters are LOCAL —
+    they reset every call, so a fresh request always gets a fresh budget.
+    Multi-turn memory comes from `history`: the planner sees only the current
+    request + in-turn tool results (so prior turns can't trigger early `done`),
+    while the reply phase sees full history for natural continuity."""
     planner_sys = PLANNER_SYSTEM.format(skills=skill_descriptions())
     grammar = tool_call_grammar()
-    working = history + [{"role": "user", "content": user_msg}]
+
+    # Planner's view: just this turn (prevents prior turns from being read as completed work).
+    planner_view: list[dict] = [{"role": "user", "content": user_msg}]
     last_call: tuple[str, str] | None = None
     repeat_count = 0
 
@@ -131,7 +138,7 @@ def turn(agent: Agent, user_msg: str, history: list[dict]) -> str:
         for attempt in range(3):
             raw = agent.generate(
                 system=planner_sys,
-                history=working,
+                history=planner_view,
                 max_tokens=512,
                 grammar=grammar,
                 temperature=0.0 if attempt > 0 else 0.2,
@@ -161,18 +168,20 @@ def turn(agent: Agent, user_msg: str, history: list[dict]) -> str:
         print(f"  [step {step + 1}] {skill_name}({args})", file=sys.stderr)
         result = execute(skill_name, args)
         result_str = json.dumps(result, indent=2)
-        working = working + [
+        planner_view = planner_view + [
             {"role": "assistant", "content": json.dumps({"skill": skill_name, "args": args})},
             {"role": "user", "content": f"[tool:{skill_name} result]\n{result_str}"},
         ]
     else:
         print(f"  [planner] hit MAX_STEPS={MAX_STEPS}", file=sys.stderr)
 
+    # Reply phase: full conversation history + this turn's user msg + in-turn tool results.
+    reply_view = history + planner_view
     print("Assistant: ", end="", flush=True)
     full = stream_with_thinking(
         agent.stream(
             system=REPLY_SYSTEM,
-            history=working,
+            history=reply_view,
             max_tokens=400,
             temperature=0.3,
         )
