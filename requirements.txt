@@ -3,3 +3,5 @@ pypdf
 psutil
 smbus2
 pimoroni-bme280
+huggingface-hub
+datasets

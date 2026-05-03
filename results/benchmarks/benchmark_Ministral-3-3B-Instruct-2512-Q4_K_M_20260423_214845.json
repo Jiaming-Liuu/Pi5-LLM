@@ -1,0 +1,44 @@
+{
+  "model": "Ministral-3-3B-Instruct-2512-Q4_K_M.gguf",
+  "model_family": "mistral",
+  "timestamp": "2026-04-23T21:46:08.811072",
+  "load_time_s": 3.45,
+  "n_ctx": 2048,
+  "n_threads": 8,
+  "n_gpu_layers": -1,
+  "n_per_dataset": 100,
+  "seed": 42,
+  "datasets": {
+    "hellaswag": {
+      "dataset": "hellaswag",
+      "shot": "zero-shot",
+      "accuracy_%": 36.0,
+      "correct": 36,
+      "n": 100,
+      "records": []
+    },
+    "mmlu": {
+      "dataset": "mmlu",
+      "shot": "5-shot",
+      "subjects": [
+        "high_school_geography",
+        "world_religions",
+        "elementary_mathematics",
+        "high_school_biology",
+        "astronomy"
+      ],
+      "accuracy_%": 25.0,
+      "correct": 25,
+      "n": 100,
+      "records": []
+    },
+    "truthfulqa": {
+      "dataset": "truthfulqa",
+      "shot": "zero-shot",
+      "accuracy_%": 30.0,
+      "correct": 30,
+      "n": 100,
+      "records": []
+    }
+  }
+}
