@@ -1,0 +1,1124 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pi5 Agent</title>
+<style>
+  :root {
+    --bg: #161616;
+    --panel: #1f1f1f;
+    --border: #333;
+    --fg: #eaeaea;
+    --muted: #888;
+    --user: #7cb8ff;
+    --assistant: #b8e8b8;
+    --tool: #f0c270;
+    --accent: #3a6df0;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--fg);
+    margin: 0;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+  }
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.6rem;
+    max-width: 1200px;
+    width: 100%;
+    align-self: center;
+  }
+  h1 { font-size: 1.1rem; margin: 0; }
+  .status { font-size: 0.8rem; color: var(--muted); }
+  .app {
+    flex: 1;
+    display: flex;
+    gap: 1rem;
+    min-height: 0;
+    max-width: 1200px;
+    width: 100%;
+    align-self: center;
+  }
+  #sidebar {
+    width: 280px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-height: 0;
+  }
+  #chat-col {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .sidebar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.5rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.85rem;
+    font-weight: 600;
+  }
+  .sidebar-header button {
+    padding: 0.15rem 0.5rem;
+    font-size: 0.85rem;
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+  }
+  .sidebar-header button:hover { color: var(--fg); border-color: var(--accent); }
+  #sandbox-path {
+    padding: 0.4rem 0.7rem;
+    font-size: 0.72rem;
+    color: var(--muted);
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    border-bottom: 1px solid var(--border);
+    word-break: break-all;
+  }
+  #sandbox-list {
+    list-style: none;
+    margin: 0;
+    padding: 0.3rem 0;
+    overflow-y: auto;
+    flex: 1;
+    font-size: 0.85rem;
+  }
+  #sandbox-list li {
+    padding: 0.25rem 0.7rem;
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    color: var(--fg);
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  #sandbox-list li .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #sandbox-list li .size {
+    color: var(--muted);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+  }
+  #sandbox-list li.empty {
+    color: var(--muted);
+    font-style: italic;
+    justify-content: center;
+  }
+  #dropzone {
+    margin-top: auto;
+    padding: 1rem 0.7rem;
+    border: 2px dashed var(--border);
+    border-radius: 6px;
+    text-align: center;
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.85rem;
+    transition: border-color 0.15s, background 0.15s, color 0.15s;
+  }
+  #dropzone:hover { color: var(--fg); border-color: var(--accent); }
+  #dropzone.dragover {
+    border-color: var(--accent);
+    background: rgba(58, 109, 240, 0.1);
+    color: var(--fg);
+  }
+  #dropzone p { margin: 0.1rem 0; }
+  #dropzone .hint { font-size: 0.75rem; opacity: 0.7; }
+  #upload-status { font-size: 0.78rem; color: var(--muted); margin-top: 0.4rem; min-height: 1em; }
+  #log {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem;
+    overflow-y: auto;
+    font-size: 0.95rem;
+    line-height: 1.45;
+    min-height: 0;
+  }
+  .msg { margin-bottom: 0.9rem; white-space: pre-wrap; word-wrap: break-word; }
+  .label {
+    display: inline-block;
+    font-weight: 600;
+    margin-right: 0.4rem;
+  }
+  .msg.user .label { color: var(--user); }
+  .msg.assistant .label { color: var(--assistant); }
+  .tool {
+    color: var(--tool);
+    font-size: 0.82rem;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    background: rgba(240, 194, 112, 0.07);
+    border-left: 2px solid var(--tool);
+    padding: 0.25rem 0.5rem;
+    margin: 0.3rem 0;
+    border-radius: 0 3px 3px 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+  .tool .arrow { opacity: 0.65; margin-right: 0.3rem; }
+  form {
+    display: flex;
+    gap: 0.4rem;
+    margin-top: 0.6rem;
+  }
+  input[type=text] {
+    flex: 1;
+    padding: 0.65rem 0.8rem;
+    background: var(--panel);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+  input[type=text]:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  button {
+    padding: 0.65rem 1rem;
+    background: var(--accent);
+    color: white;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+  button.secondary { background: #444; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .cursor { display: inline-block; width: 0.5ch; background: currentColor; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .thinking {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--muted);
+    font-style: italic;
+    margin-bottom: 0.9rem;
+    font-size: 0.92rem;
+  }
+  .spinner {
+    display: inline-block;
+    width: 0.95em;
+    height: 0.95em;
+    border: 2px solid var(--muted);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---- mode-selection modal ---- */
+  .modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  .modal[hidden] { display: none; }
+  .modal-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem 1.8rem;
+    min-width: 320px;
+    max-width: 420px;
+    text-align: center;
+  }
+  .modal-card h2 { margin: 0 0 0.4rem; font-size: 1.1rem; }
+  .modal-card .modal-sub { color: var(--muted); font-size: 0.85rem; margin-bottom: 1.1rem; }
+  .modal-card .modal-actions {
+    display: flex; flex-direction: column; gap: 0.5rem;
+  }
+  .modal-card button { width: 100%; padding: 0.7rem 1rem; }
+  .modal-card .note {
+    color: var(--muted); font-size: 0.75rem; margin-top: 0.9rem;
+    line-height: 1.4;
+  }
+
+  /* "Switch sandbox" link in the sidebar header */
+  .sidebar-header .switch-mode {
+    background: transparent;
+    color: var(--muted);
+    border: none;
+    padding: 0.1rem 0.3rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+  .sidebar-header .switch-mode:hover { color: var(--fg); }
+
+  /* hover-to-download chevron + delete */
+  #sandbox-list li { position: relative; }
+  #sandbox-list li .row-actions {
+    display: none;
+    align-items: center;
+    gap: 0.15rem;
+  }
+  #sandbox-list li .row-actions .icon {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 0.95rem;
+    padding: 0 0.25rem;
+  }
+  #sandbox-list li .row-actions .icon:hover { color: var(--fg); }
+  #sandbox-list li .row-actions .icon.trash:hover { color: #ff7a7a; }
+  #sandbox-list li:hover .row-actions { display: inline-flex; }
+  #sandbox-list li:hover .size { display: none; }
+  #sandbox-list li .name.previewable { cursor: pointer; }
+  #sandbox-list li .name.previewable:hover { color: var(--accent); text-decoration: underline; }
+
+  /* ---- preview modal ---- */
+  #preview-modal[hidden] { display: none; }
+  #preview-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.75);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 90;
+    padding: 1.5rem;
+  }
+  #preview-modal .preview-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: min(900px, 100%);
+    height: min(85vh, 100%);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+  #preview-modal .preview-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 0.6rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.92rem;
+  }
+  #preview-modal .preview-header .name {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.85rem;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    margin-right: 0.6rem;
+  }
+  #preview-modal .preview-close {
+    background: transparent; color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 0.15rem 0.55rem;
+    font-size: 0.85rem;
+  }
+  #preview-modal .preview-body { flex: 1; overflow: hidden; display: flex; }
+  #preview-modal pre {
+    margin: 0; padding: 0.9rem 1.1rem;
+    flex: 1;
+    overflow: auto;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    color: var(--fg);
+    white-space: pre;
+  }
+  #preview-modal iframe {
+    flex: 1; border: 0; background: #fff;
+  }
+
+  /* ---- confirm dialog (delete) ---- */
+  #confirm-modal[hidden] { display: none; }
+  #confirm-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 110;
+  }
+  #confirm-modal .confirm-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem 1.4rem;
+    min-width: 300px;
+    max-width: 420px;
+  }
+  #confirm-modal .confirm-card p {
+    margin: 0 0 1rem;
+    word-break: break-all;
+  }
+  #confirm-modal .confirm-actions {
+    display: flex; gap: 0.5rem; justify-content: flex-end;
+  }
+  #confirm-modal .confirm-yes { background: #c84444; }
+  #confirm-modal .confirm-yes:hover { background: #d65555; }
+</style>
+</head>
+<body>
+<div id="mode-modal" class="modal">
+  <div class="modal-card">
+    <h2>Choose sandbox</h2>
+    <p class="modal-sub">Where should the agent read &amp; write files?</p>
+    <div class="modal-actions">
+      <button id="pick-pc" type="button">Select PC folder…</button>
+      <button id="pick-pi" type="button" class="secondary">Use Pi sandbox</button>
+    </div>
+    <p class="note" id="modal-note">PC mode requires Chrome or Edge (File System Access API).</p>
+  </div>
+</div>
+
+<div id="preview-modal" hidden>
+  <div class="preview-card">
+    <div class="preview-header">
+      <span class="name" id="preview-name"></span>
+      <button class="preview-close" id="preview-close" type="button">close</button>
+    </div>
+    <div class="preview-body" id="preview-body"></div>
+  </div>
+</div>
+
+<div id="confirm-modal" hidden>
+  <div class="confirm-card">
+    <p id="confirm-text"></p>
+    <div class="confirm-actions">
+      <button id="confirm-no" type="button" class="secondary">No</button>
+      <button id="confirm-yes" type="button" class="confirm-yes">Yes</button>
+    </div>
+  </div>
+</div>
+<header>
+  <h1>Pi5 Agent</h1>
+  <span class="status" id="status">idle</span>
+</header>
+<div class="app">
+  <aside id="sidebar" class="panel">
+    <div class="sidebar-header">
+      <span id="sandbox-title">Sandbox</span>
+      <span>
+        <button id="switch-mode" type="button" class="switch-mode" title="Switch sandbox">switch</button>
+        <button id="refresh" type="button" title="Refresh">↻</button>
+      </span>
+    </div>
+    <div id="sandbox-path">…</div>
+    <ul id="sandbox-list"><li class="empty">loading…</li></ul>
+    <div id="dropzone">
+      <p>Drop files here</p>
+      <p class="hint">or click to browse</p>
+      <input type="file" id="file-input" multiple hidden>
+    </div>
+    <div id="upload-status"></div>
+  </aside>
+  <div id="chat-col">
+    <div id="log"></div>
+    <form id="form">
+      <input id="msg" type="text" autocomplete="off" placeholder="Ask the Pi…" autofocus>
+      <button id="send" type="submit">Send</button>
+      <button id="reset" type="button" class="secondary">Reset</button>
+    </form>
+  </div>
+</div>
+
+<script>
+const log = document.getElementById('log');
+const form = document.getElementById('form');
+const input = document.getElementById('msg');
+const sendBtn = document.getElementById('send');
+const resetBtn = document.getElementById('reset');
+const status = document.getElementById('status');
+
+function appendMsg(role, label, text) {
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  const labelEl = document.createElement('span');
+  labelEl.className = 'label';
+  labelEl.textContent = label;
+  const content = document.createElement('span');
+  content.className = 'content';
+  content.textContent = text;
+  div.appendChild(labelEl);
+  div.appendChild(content);
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  return content;
+}
+
+function appendTool(name, args) {
+  const div = document.createElement('div');
+  div.className = 'tool';
+  const argStr = args && Object.keys(args).length ? JSON.stringify(args) : '{}';
+  div.innerHTML = `<span class="arrow">→</span>${name}(${argStr})`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  return div;
+}
+
+function showThinking(label) {
+  let el = document.getElementById('thinking');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'thinking';
+    el.className = 'thinking';
+    el.innerHTML = `<span class="spinner"></span><span class="thinking-label"></span>`;
+    log.appendChild(el);
+  }
+  el.querySelector('.thinking-label').textContent = label;
+  log.scrollTop = log.scrollHeight;
+}
+
+function hideThinking() {
+  const el = document.getElementById('thinking');
+  if (el) el.remove();
+}
+
+async function send(message) {
+  appendMsg('user', 'You:', message);
+  showThinking('Thinking');
+  status.textContent = 'thinking…';
+  sendBtn.disabled = true;
+
+  let replySpan = null;
+
+  try {
+    const res = await fetch('/chat', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message}),
+    });
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) !== -1) {
+        const block = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        let evt = 'message', dataStr = '';
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event:')) evt = line.slice(6).trim();
+          else if (line.startsWith('data:')) dataStr += line.slice(5).trim();
+        }
+        let data;
+        try { data = JSON.parse(dataStr); } catch (e) { continue; }
+
+        if (evt === 'planner_start') {
+          showThinking(`Planning step ${data.step}…`);
+          status.textContent = `planner step ${data.step}…`;
+        } else if (evt === 'planner_progress') {
+          showThinking(`Planning step ${data.step} — ${data.chars} chars (${data.elapsed}s)`);
+        } else if (evt === 'tool') {
+          hideThinking();
+          appendTool(data.name, data.args);
+          showThinking(`Running ${data.name}`);
+          status.textContent = `running ${data.name}…`;
+        } else if (evt === 'tool_result') {
+          showThinking('Thinking');
+          status.textContent = 'thinking…';
+        } else if (evt === 'token') {
+          if (!replySpan) {
+            hideThinking();
+            replySpan = appendMsg('assistant', 'Agent:', '');
+          }
+          replySpan.textContent += data.text;
+          log.scrollTop = log.scrollHeight;
+        } else if (evt === 'error') {
+          hideThinking();
+          if (!replySpan) replySpan = appendMsg('assistant', 'Agent:', '');
+          replySpan.textContent += `\n[error: ${data.message}]`;
+        } else if (evt === 'done') {
+          hideThinking();
+          status.textContent = 'idle';
+          refreshSandbox();
+        }
+      }
+    }
+  } catch (e) {
+    hideThinking();
+    if (!replySpan) replySpan = appendMsg('assistant', 'Agent:', '');
+    replySpan.textContent += `\n[connection error: ${e.message}]`;
+    status.textContent = 'idle';
+  }
+
+  sendBtn.disabled = false;
+  input.focus();
+}
+
+form.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const m = input.value.trim();
+  if (!m) return;
+  input.value = '';
+  send(m);
+});
+
+resetBtn.addEventListener('click', async () => {
+  await fetch('/reset', {method: 'POST'});
+  log.innerHTML = '';
+  status.textContent = 'idle';
+  input.focus();
+});
+
+// ---------- sandbox sidebar ----------
+const sandboxList = document.getElementById('sandbox-list');
+const sandboxPath = document.getElementById('sandbox-path');
+const sandboxTitle = document.getElementById('sandbox-title');
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('file-input');
+const uploadStatus = document.getElementById('upload-status');
+const modeModal = document.getElementById('mode-modal');
+const pickPcBtn = document.getElementById('pick-pc');
+const pickPiBtn = document.getElementById('pick-pi');
+const switchModeBtn = document.getElementById('switch-mode');
+const modalNote = document.getElementById('modal-note');
+
+let currentMode = null;          // 'pi' | 'pc' | null
+window.__pcDir = null;           // FileSystemDirectoryHandle when in PC mode
+let fsPollAbort = null;          // AbortController for the SSE poll
+
+function setInputEnabled(enabled) {
+  input.disabled = !enabled;
+  sendBtn.disabled = !enabled;
+}
+
+function showModal() {
+  modeModal.hidden = false;
+  setInputEnabled(false);
+  if (!window.showDirectoryPicker) {
+    pickPcBtn.disabled = true;
+    if (!window.isSecureContext) {
+      modalNote.innerHTML =
+        'PC mode needs a secure context (HTTPS or localhost). ' +
+        'Currently on plain HTTP — either run Flask with HTTPS, or in Chrome open ' +
+        '<code>chrome://flags/#unsafely-treat-insecure-origin-as-secure</code>, add ' +
+        '<code>' + location.origin + '</code>, and relaunch.';
+    } else {
+      modalNote.textContent = 'PC mode unavailable in this browser. Use Pi sandbox or try Chrome/Edge.';
+    }
+  } else {
+    modalNote.textContent = 'PC mode requires Chrome or Edge (File System Access API).';
+  }
+}
+function hideModal() {
+  modeModal.hidden = true;
+  setInputEnabled(true);
+  input.focus();
+}
+
+function formatSize(n) {
+  if (n == null) return '';
+  if (n < 1024) return n + ' B';
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + ' K';
+  return (n / 1024 / 1024).toFixed(1) + ' M';
+}
+
+async function refreshSandbox() {
+  try {
+    const r = await fetch('/sandbox/list');
+    const data = await r.json();
+    sandboxPath.textContent = data.dir || data.error || '';
+    sandboxList.innerHTML = '';
+    const entries = data.entries || [];
+    if (!entries.length) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = '(empty)';
+      sandboxList.appendChild(li);
+      return;
+    }
+    for (const e of entries) {
+      const li = document.createElement('li');
+      const icon = e.type === 'dir' ? '📁' : '📄';
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'name';
+      nameSpan.textContent = `${icon} ${e.name}`;
+      nameSpan.title = e.name;
+      const sizeSpan = document.createElement('span');
+      sizeSpan.className = 'size';
+      sizeSpan.textContent = formatSize(e.bytes);
+      li.appendChild(nameSpan);
+      li.appendChild(sizeSpan);
+      if (e.type === 'file') {
+        if (isPreviewable(e.name)) {
+          nameSpan.classList.add('previewable');
+          nameSpan.addEventListener('click', () => previewEntry(e.name));
+        }
+        const actions = document.createElement('span');
+        actions.className = 'row-actions';
+        const dl = document.createElement('span');
+        dl.className = 'icon dl';
+        dl.textContent = '⬇';
+        dl.title = `Download ${e.name}`;
+        dl.addEventListener('click', (ev) => { ev.stopPropagation(); downloadEntry(e.name); });
+        const trash = document.createElement('span');
+        trash.className = 'icon trash';
+        trash.textContent = '🗑';
+        trash.title = `Delete ${e.name}`;
+        trash.addEventListener('click', (ev) => { ev.stopPropagation(); deleteEntry(e.name); });
+        actions.appendChild(dl);
+        actions.appendChild(trash);
+        li.appendChild(actions);
+      }
+      sandboxList.appendChild(li);
+    }
+  } catch (err) {
+    sandboxPath.textContent = `error: ${err.message}`;
+  }
+}
+
+function isPreviewable(name) {
+  const lower = name.toLowerCase();
+  return lower.endsWith('.txt') || lower.endsWith('.py') || lower.endsWith('.pdf');
+}
+
+// ---- preview modal ----
+const previewModal = document.getElementById('preview-modal');
+const previewName = document.getElementById('preview-name');
+const previewBody = document.getElementById('preview-body');
+const previewClose = document.getElementById('preview-close');
+
+function closePreview() {
+  previewModal.hidden = true;
+  // revoke any blob URL the iframe was using
+  const iframe = previewBody.querySelector('iframe');
+  if (iframe && iframe.dataset.blobUrl) URL.revokeObjectURL(iframe.dataset.blobUrl);
+  previewBody.innerHTML = '';
+}
+previewClose.addEventListener('click', closePreview);
+previewModal.addEventListener('click', (e) => { if (e.target === previewModal) closePreview(); });
+document.addEventListener('keydown', (e) => {
+  if (!previewModal.hidden && e.key === 'Escape') closePreview();
+});
+
+async function previewEntry(name) {
+  previewName.textContent = name;
+  previewBody.innerHTML = '<pre style="opacity:0.6;padding:1rem">loading…</pre>';
+  previewModal.hidden = false;
+
+  const lower = name.toLowerCase();
+  const isPdf = lower.endsWith('.pdf');
+
+  try {
+    if (currentMode === 'pi') {
+      const url = '/sandbox/preview/' + encodeURIComponent(name);
+      if (isPdf) {
+        previewBody.innerHTML = '';
+        const ifr = document.createElement('iframe');
+        ifr.src = url;
+        previewBody.appendChild(ifr);
+      } else {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const text = await r.text();
+        previewBody.innerHTML = '';
+        const pre = document.createElement('pre');
+        pre.textContent = text;
+        previewBody.appendChild(pre);
+      }
+    } else if (currentMode === 'pc' && window.__pcDir) {
+      const fh = await window.__pcDir.getFileHandle(name);
+      const file = await fh.getFile();
+      if (isPdf) {
+        const url = URL.createObjectURL(file);
+        previewBody.innerHTML = '';
+        const ifr = document.createElement('iframe');
+        ifr.src = url;
+        ifr.dataset.blobUrl = url;
+        previewBody.appendChild(ifr);
+      } else {
+        const text = await file.text();
+        previewBody.innerHTML = '';
+        const pre = document.createElement('pre');
+        pre.textContent = text;
+        previewBody.appendChild(pre);
+      }
+    } else {
+      throw new Error('no sandbox active');
+    }
+  } catch (e) {
+    previewBody.innerHTML = '';
+    const pre = document.createElement('pre');
+    pre.style.color = '#ff8888';
+    pre.textContent = `error: ${e.message || e}`;
+    previewBody.appendChild(pre);
+  }
+}
+
+// ---- styled confirm dialog ----
+const confirmModal = document.getElementById('confirm-modal');
+const confirmText = document.getElementById('confirm-text');
+const confirmYes = document.getElementById('confirm-yes');
+const confirmNo = document.getElementById('confirm-no');
+
+function confirmDialog(message) {
+  return new Promise((resolve) => {
+    confirmText.textContent = message;
+    confirmModal.hidden = false;
+    const cleanup = (answer) => {
+      confirmModal.hidden = true;
+      confirmYes.removeEventListener('click', onYes);
+      confirmNo.removeEventListener('click', onNo);
+      resolve(answer);
+    };
+    const onYes = () => cleanup(true);
+    const onNo = () => cleanup(false);
+    confirmYes.addEventListener('click', onYes);
+    confirmNo.addEventListener('click', onNo);
+  });
+}
+
+async function deleteEntry(name) {
+  const ok = await confirmDialog(`Are you sure to delete ${name}?`);
+  if (!ok) return;
+  try {
+    if (currentMode === 'pi') {
+      const r = await fetch('/sandbox/delete', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({path: name}),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    } else if (currentMode === 'pc' && window.__pcDir) {
+      await window.__pcDir.removeEntry(name);
+    } else {
+      throw new Error('no sandbox active');
+    }
+    uploadStatus.textContent = `deleted ${name}`;
+    setTimeout(() => { uploadStatus.textContent = ''; }, 3000);
+  } catch (e) {
+    uploadStatus.textContent = `delete failed: ${e.message || e}`;
+    setTimeout(() => { uploadStatus.textContent = ''; }, 4000);
+  }
+  await refreshSandbox();
+}
+
+async function downloadEntry(name) {
+  if (currentMode === 'pi') {
+    window.location = '/sandbox/download/' + encodeURIComponent(name);
+    return;
+  }
+  if (currentMode === 'pc' && window.__pcDir) {
+    try {
+      const fh = await window.__pcDir.getFileHandle(name);
+      const file = await fh.getFile();
+      const url = URL.createObjectURL(file);
+      const a = document.createElement('a');
+      a.href = url; a.download = name; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      uploadStatus.textContent = `download failed: ${e.message}`;
+      setTimeout(() => { uploadStatus.textContent = ''; }, 4000);
+    }
+  }
+}
+
+async function uploadFiles(files) {
+  if (!files || !files.length) return;
+  uploadStatus.textContent = `uploading ${files.length} file${files.length > 1 ? 's' : ''}…`;
+  try {
+    if (currentMode === 'pc' && window.__pcDir) {
+      let saved = 0, errors = 0;
+      for (const f of files) {
+        try {
+          const fh = await window.__pcDir.getFileHandle(f.name, {create: true});
+          const w = await fh.createWritable();
+          await w.write(await f.arrayBuffer());
+          await w.close();
+          saved++;
+        } catch (_) { errors++; }
+      }
+      uploadStatus.textContent = `uploaded ${saved}` + (errors ? `, ${errors} error${errors > 1 ? 's' : ''}` : '');
+    } else {
+      const fd = new FormData();
+      for (const f of files) fd.append('file', f);
+      const r = await fetch('/sandbox/upload', {method: 'POST', body: fd});
+      const data = await r.json();
+      const saved = data.saved || [];
+      const errors = data.errors || [];
+      let msg = saved.length ? `uploaded ${saved.length}` : '';
+      if (errors.length) msg += `${msg ? ', ' : ''}${errors.length} error${errors.length > 1 ? 's' : ''}`;
+      uploadStatus.textContent = msg || 'no files saved';
+    }
+    setTimeout(() => { uploadStatus.textContent = ''; }, 4000);
+  } catch (err) {
+    uploadStatus.textContent = `error: ${err.message}`;
+  }
+  await refreshSandbox();
+}
+
+dropzone.addEventListener('click', () => fileInput.click());
+fileInput.addEventListener('change', () => {
+  uploadFiles(fileInput.files);
+  fileInput.value = '';
+});
+
+['dragenter', 'dragover'].forEach(evt => {
+  dropzone.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation();
+    dropzone.classList.add('dragover');
+  });
+});
+['dragleave', 'drop'].forEach(evt => {
+  dropzone.addEventListener(evt, e => {
+    e.preventDefault(); e.stopPropagation();
+    dropzone.classList.remove('dragover');
+  });
+});
+dropzone.addEventListener('drop', e => {
+  uploadFiles(e.dataTransfer.files);
+});
+
+// Prevent the browser from navigating when files are dropped outside the dropzone.
+['dragover', 'drop'].forEach(evt => {
+  window.addEventListener(evt, e => { e.preventDefault(); });
+});
+
+document.getElementById('refresh').addEventListener('click', refreshSandbox);
+
+// ---------- mode handling ----------
+
+async function setMode(mode, name) {
+  const body = (mode === 'pc') ? {mode, name} : {mode};
+  const r = await fetch('/sandbox/mode', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.error || 'mode failed');
+  currentMode = data.mode;
+  sandboxTitle.textContent = data.label || 'Sandbox';
+  log.innerHTML = '';   // server cleared history; clear UI to match
+}
+
+pickPiBtn.addEventListener('click', async () => {
+  pickPiBtn.disabled = true;
+  try {
+    if (fsPollAbort) { fsPollAbort.abort(); fsPollAbort = null; }
+    window.__pcDir = null;
+    await setMode('pi');
+    hideModal();
+    refreshSandbox();
+  } catch (e) {
+    modalNote.textContent = `error: ${e.message}`;
+  } finally {
+    pickPiBtn.disabled = false;
+  }
+});
+
+pickPcBtn.addEventListener('click', async () => {
+  pickPcBtn.disabled = true;
+  try {
+    const handle = await window.showDirectoryPicker({mode: 'readwrite'});
+    window.__pcDir = handle;
+    await setMode('pc', handle.name);
+    startFsPoll();
+    hideModal();
+    refreshSandbox();
+  } catch (e) {
+    if (e.name !== 'AbortError') modalNote.textContent = `error: ${e.message}`;
+  } finally {
+    pickPcBtn.disabled = false;
+  }
+});
+
+switchModeBtn.addEventListener('click', () => {
+  if (fsPollAbort) { fsPollAbort.abort(); fsPollAbort = null; }
+  window.__pcDir = null;
+  showModal();
+});
+
+// ---------- File System Access bridge (PC mode) ----------
+
+async function pathToFileHandle(dir, path, opts = {}) {
+  const parts = path.split('/').filter(p => p && p !== '.');
+  if (parts.some(p => p === '..')) throw new Error('path contains ..');
+  if (!parts.length) throw new Error('empty path');
+  let cur = dir;
+  for (let i = 0; i < parts.length - 1; i++) {
+    cur = await cur.getDirectoryHandle(parts[i], {create: !!opts.create});
+  }
+  return await cur.getFileHandle(parts[parts.length - 1], {create: !!opts.create});
+}
+
+async function pathToDirHandle(dir, path) {
+  const parts = path.split('/').filter(p => p && p !== '.');
+  if (parts.some(p => p === '..')) throw new Error('path contains ..');
+  let cur = dir;
+  for (const p of parts) cur = await cur.getDirectoryHandle(p);
+  return cur;
+}
+
+async function fsList(args) {
+  const dir = await pathToDirHandle(window.__pcDir, args.path || '');
+  const entries = [];
+  for await (const [name, h] of dir.entries()) {
+    let bytes = null;
+    if (h.kind === 'file') {
+      try { bytes = (await h.getFile()).size; } catch (_) {}
+    }
+    entries.push({name, type: h.kind === 'directory' ? 'dir' : 'file', bytes});
+  }
+  entries.sort((a, b) => a.name.localeCompare(b.name));
+  const label = `PC: ${window.__pcDir.name}` + (args.path ? `/${args.path}` : '');
+  return {dir: label, entries};
+}
+
+async function fsReadText(args) {
+  const fh = await pathToFileHandle(window.__pcDir, args.path);
+  return await (await fh.getFile()).text();
+}
+
+function arrayBufferToBase64(buf) {
+  const bytes = new Uint8Array(buf);
+  const CHUNK = 0x8000;
+  const parts = [];
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK)));
+  }
+  return btoa(parts.join(''));
+}
+
+async function fsReadBytes(args) {
+  const fh = await pathToFileHandle(window.__pcDir, args.path);
+  const file = await fh.getFile();
+  const cap = args.max_bytes || (20 * 1024 * 1024);
+  if (file.size > cap) throw new Error(`file ${file.size} bytes exceeds cap ${cap}`);
+  const buf = await file.arrayBuffer();
+  return {b64: arrayBufferToBase64(buf)};
+}
+
+async function fsWriteText(args) {
+  const fh = await pathToFileHandle(window.__pcDir, args.path, {create: true});
+  const w = await fh.createWritable();
+  await w.write(args.content || '');
+  await w.close();
+  const file = await fh.getFile();
+  return {file: args.path, bytes: file.size, status: 'written'};
+}
+
+async function fsExists(args) {
+  try {
+    await pathToFileHandle(window.__pcDir, args.path);
+    return true;
+  } catch (_) {}
+  try {
+    await pathToDirHandle(window.__pcDir, args.path);
+    return true;
+  } catch (_) {}
+  return false;
+}
+
+async function fsIsDir(args) {
+  try {
+    await pathToDirHandle(window.__pcDir, args.path);
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+const FS_HANDLERS = {
+  list: fsList,
+  read_text: fsReadText,
+  read_bytes: fsReadBytes,
+  write_text: fsWriteText,
+  exists: fsExists,
+  is_dir: fsIsDir,
+};
+
+async function handleFsOp({id, op, args}) {
+  const handler = FS_HANDLERS[op];
+  let body;
+  if (!handler) {
+    body = {ok: false, error: `unknown op: ${op}`};
+  } else {
+    try {
+      const result = await handler(args || {});
+      body = {ok: true, result};
+    } catch (e) {
+      body = {ok: false, error: e.toString()};
+    }
+  }
+  await fetch(`/fs/result/${encodeURIComponent(id)}`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body),
+  });
+}
+
+async function startFsPoll() {
+  if (fsPollAbort) fsPollAbort.abort();
+  fsPollAbort = new AbortController();
+  try {
+    const res = await fetch('/fs/poll', {signal: fsPollAbort.signal});
+    if (!res.ok) {
+      modalNote.textContent = `bridge error: HTTP ${res.status}`;
+      return;
+    }
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream: true});
+      let idx;
+      while ((idx = buf.indexOf('\n\n')) !== -1) {
+        const block = buf.slice(0, idx);
+        buf = buf.slice(idx + 2);
+        let evt = 'message', dataStr = '';
+        for (const line of block.split('\n')) {
+          if (line.startsWith('event:')) evt = line.slice(6).trim();
+          else if (line.startsWith('data:')) dataStr += line.slice(5).trim();
+        }
+        if (evt !== 'fs_op') continue;
+        let data; try { data = JSON.parse(dataStr); } catch (_) { continue; }
+        handleFsOp(data);   // deliberately not awaited; handlers run concurrently
+      }
+    }
+  } catch (e) {
+    if (e.name !== 'AbortError') console.error('fs_poll error', e);
+  }
+}
+
+// ---------- bootstrap ----------
+
+(async function init() {
+  try {
+    const r = await fetch('/sandbox/mode');
+    const data = await r.json();
+    currentMode = data.mode;
+    if (data.label) sandboxTitle.textContent = data.label;
+  } catch (_) {}
+  if (currentMode === null) {
+    showModal();
+  } else {
+    setInputEnabled(true);
+    refreshSandbox();
+    // If server thinks PC mode but we have no handle (page reloaded), force re-pick.
+    if (currentMode === 'pc' && !window.__pcDir) {
+      showModal();
+    }
+  }
+})();
+</script>
+</body>
+</html>

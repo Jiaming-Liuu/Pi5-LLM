@@ -8,14 +8,28 @@ Two skills:
 
 from __future__ import annotations
 
+import io
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable
 
+from connection.sandbox import LocalSandbox, Sandbox
+
 SANDBOX_ROOT = Path(os.environ.get("PI5_SANDBOX", Path.home() / "pi5_sandbox")).resolve()
 PDF_TOKEN_BUDGET = 700  # ~chars*0.25; we cap by characters as a proxy
 PDF_CHAR_BUDGET = PDF_TOKEN_BUDGET * 4
+
+_active_sandbox: Sandbox = LocalSandbox(SANDBOX_ROOT)
+
+
+def set_sandbox(sb: Sandbox) -> None:
+    global _active_sandbox
+    _active_sandbox = sb
+
+
+def get_sandbox() -> Sandbox:
+    return _active_sandbox
 
 
 # ---------- read_status ----------
@@ -87,40 +101,20 @@ def read_status() -> dict[str, Any]:
     return status
 
 
-# ---------- read_PDF ----------
-
-def _resolve_sandboxed(path: str) -> Path:
-    SANDBOX_ROOT.mkdir(parents=True, exist_ok=True)
-    candidate = (SANDBOX_ROOT / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
-    if SANDBOX_ROOT not in candidate.parents and candidate != SANDBOX_ROOT:
-        raise PermissionError(f"path escapes sandbox {SANDBOX_ROOT}")
-    return candidate
-
+# ---------- sandbox-backed file skills ----------
 
 def list_dir(path: str = "") -> dict[str, Any]:
-    target = _resolve_sandboxed(path) if path else SANDBOX_ROOT
-    if not target.exists():
-        return {"error": f"directory not found: {target}"}
-    if not target.is_dir():
-        return {"error": f"not a directory: {target}"}
-    entries = []
-    for entry in sorted(target.iterdir()):
-        entries.append({
-            "name": entry.name,
-            "type": "dir" if entry.is_dir() else "file",
-            "bytes": entry.stat().st_size if entry.is_file() else None,
-        })
-    return {"dir": str(target), "entries": entries}
+    return _active_sandbox.list_dir(path)
 
 
 def read_file(path: str) -> dict[str, Any]:
-    file_path = _resolve_sandboxed(path)
-    if not file_path.exists():
-        return {"error": f"file not found: {file_path}"}
-    if file_path.suffix.lower() == ".pdf":
+    if path.lower().endswith(".pdf"):
         return {"error": "use read_PDF for PDF files"}
+    sb = _active_sandbox
+    if not sb.exists(path):
+        return {"error": f"file not found: {path}"}
     try:
-        text = file_path.read_text(encoding="utf-8", errors="replace")
+        text = sb.read_text(path)
     except Exception as e:
         return {"error": f"{type(e).__name__}: {e}"}
     truncated = False
@@ -128,7 +122,7 @@ def read_file(path: str) -> dict[str, Any]:
         text = text[:PDF_CHAR_BUDGET] + "\n[truncated]"
         truncated = True
     return {
-        "file": file_path.name,
+        "file": path,
         "chars": len(text),
         "truncated": truncated,
         "text": text,
@@ -136,25 +130,22 @@ def read_file(path: str) -> dict[str, Any]:
 
 
 def write_file(path: str, content: str) -> dict[str, Any]:
-    file_path = _resolve_sandboxed(path)
-    file_path.parent.mkdir(parents=True, exist_ok=True)
-    file_path.write_text(content, encoding="utf-8")
-    return {
-        "file": str(file_path),
-        "bytes": len(content.encode("utf-8")),
-        "status": "written",
-    }
+    return _active_sandbox.write_text(path, content)
 
 
 def read_PDF(path: str) -> dict[str, Any]:
     from pypdf import PdfReader
-    file_path = _resolve_sandboxed(path)
-    if not file_path.exists():
-        return {"error": f"file not found: {file_path}"}
-    if file_path.suffix.lower() != ".pdf":
-        return {"error": f"not a PDF: {file_path.name}"}
+    if not path.lower().endswith(".pdf"):
+        return {"error": f"not a PDF: {path}"}
+    sb = _active_sandbox
+    if not sb.exists(path):
+        return {"error": f"file not found: {path}"}
+    try:
+        data = sb.read_bytes(path)
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}
 
-    reader = PdfReader(str(file_path))
+    reader = PdfReader(io.BytesIO(data))
     pages = [p.extract_text() or "" for p in reader.pages]
     full_text = "\n".join(pages).strip()
     truncated = False
@@ -162,7 +153,7 @@ def read_PDF(path: str) -> dict[str, Any]:
         full_text = full_text[:PDF_CHAR_BUDGET] + "\n[truncated]"
         truncated = True
     return {
-        "file": file_path.name,
+        "file": path,
         "pages": len(reader.pages),
         "chars": len(full_text),
         "truncated": truncated,
