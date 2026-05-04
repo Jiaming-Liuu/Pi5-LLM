@@ -33,6 +33,7 @@ class Agent:
         max_tokens: int = 256,
         grammar: LlamaGrammar | None = None,
         temperature: float = 0.2,
+        repeat_penalty: float = 1.0,
     ) -> str:
         prompt = build_prompt(system, history)
         result = self.llm(
@@ -41,6 +42,7 @@ class Agent:
             stop=QWEN_STOP,
             grammar=grammar,
             temperature=temperature,
+            repeat_penalty=repeat_penalty,
             echo=False,
         )
         return result["choices"][0]["text"].strip()
@@ -51,6 +53,8 @@ class Agent:
         history: list[dict],
         max_tokens: int = 768,
         temperature: float = 0.3,
+        grammar: LlamaGrammar | None = None,
+        repeat_penalty: float = 1.0,
     ) -> Iterator[str]:
         prompt = build_prompt(system, history)
         for chunk in self.llm(
@@ -58,8 +62,10 @@ class Agent:
             max_tokens=max_tokens,
             stop=QWEN_STOP,
             temperature=temperature,
+            repeat_penalty=repeat_penalty,
             echo=False,
             stream=True,
+            grammar=grammar,
         ):
             token = chunk["choices"][0]["text"]
             if token:

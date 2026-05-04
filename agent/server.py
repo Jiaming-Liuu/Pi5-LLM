@@ -22,9 +22,9 @@ from .grammar import tool_call_grammar
 from .llm import Agent
 from .skills import execute, skill_descriptions
 
-DEFAULT_MODEL = "models/Qwen_Qwen3.5-2B-Q4_K_M.gguf"
+DEFAULT_MODEL = "/home/student/dev_james/Pi5-LLM/models/Qwen_Qwen3.5-2B-Q4_K_M.gguf"
 
-PLANNER_SYSTEM = """You are an offline Pi 5 assistant. /no_think
+PLANNER_SYSTEM = """You are an offline Pi 5 assistant.
 Decide which skill to call NEXT to make progress on the user's request. You will be called multiple times; previous tool results appear in the conversation.
 
 Available skills:
@@ -38,66 +38,17 @@ Otherwise reply with ONLY a JSON object:
 
 Use {{}} for args if the skill takes none. Do not write any text outside the JSON."""
 
-REPLY_SYSTEM = """You are an offline Pi 5 assistant. /no_think
+REPLY_SYSTEM = """You are an offline Pi 5 assistant.
 Answer the user in 2-4 sentences using the tool result below. Stick to the data provided; if the user asks for something the tool result cannot deliver (e.g. writing a file when no write skill exists), say so briefly."""
 
-DIM = "\033[2m"
-RESET = "\033[0m"
-THINK_OPEN = "<think>"
-THINK_CLOSE = "</think>"
 
-
-def stream_with_thinking(tokens) -> str:
-    """Stream tokens to stdout. Render content inside <think>...</think> dim.
-    Uses a rolling buffer so tag boundaries that span tokens still render correctly.
-    Returns the full concatenated text.
-    """
+def stream_tokens(tokens) -> str:
+    """Stream tokens to stdout and return the full concatenated text."""
     full = ""
-    pending = ""
-    in_think = False
-
-    def emit(text: str, dim: bool):
-        if not text:
-            return
-        if dim:
-            sys.stdout.write(DIM + text + RESET)
-        else:
-            sys.stdout.write(text)
-        sys.stdout.flush()
-
     for token in tokens:
         full += token
-        pending += token
-        while True:
-            if not in_think:
-                idx = pending.find(THINK_OPEN)
-                if idx >= 0:
-                    emit(pending[:idx], dim=False)
-                    pending = pending[idx + len(THINK_OPEN):]
-                    emit(THINK_OPEN + "\n", dim=True)
-                    in_think = True
-                    continue
-                # Hold back the last len(THINK_OPEN)-1 chars in case a tag is forming
-                hold = len(THINK_OPEN) - 1
-                if len(pending) > hold:
-                    emit(pending[:-hold], dim=False)
-                    pending = pending[-hold:]
-                break
-            else:
-                idx = pending.find(THINK_CLOSE)
-                if idx >= 0:
-                    emit(pending[:idx], dim=True)
-                    emit("\n" + THINK_CLOSE + "\n", dim=True)
-                    pending = pending[idx + len(THINK_CLOSE):]
-                    in_think = False
-                    continue
-                hold = len(THINK_CLOSE) - 1
-                if len(pending) > hold:
-                    emit(pending[:-hold], dim=True)
-                    pending = pending[-hold:]
-                break
-
-    emit(pending, dim=in_think)
+        sys.stdout.write(token)
+        sys.stdout.flush()
     sys.stdout.write("\n")
     sys.stdout.flush()
     return full
@@ -178,7 +129,7 @@ def turn(agent: Agent, user_msg: str, history: list[dict]) -> str:
     # Reply phase: full conversation history + this turn's user msg + in-turn tool results.
     reply_view = history + planner_view
     print("Assistant: ", end="", flush=True)
-    full = stream_with_thinking(
+    full = stream_tokens(
         agent.stream(
             system=REPLY_SYSTEM,
             history=reply_view,
@@ -186,20 +137,13 @@ def turn(agent: Agent, user_msg: str, history: list[dict]) -> str:
             temperature=0.3,
         )
     )
-    cleaned = full
-    while THINK_OPEN in cleaned and THINK_CLOSE in cleaned:
-        a = cleaned.find(THINK_OPEN)
-        b = cleaned.find(THINK_CLOSE, a)
-        if b == -1:
-            break
-        cleaned = cleaned[:a] + cleaned[b + len(THINK_CLOSE):]
-    return cleaned.strip()
+    return full.strip()
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", default=DEFAULT_MODEL)
-    parser.add_argument("--n-ctx", type=int, default=2048)
+    parser.add_argument("--n-ctx", type=int, default=16384)
     parser.add_argument("--n-threads", type=int, default=4)
     args = parser.parse_args()
 
