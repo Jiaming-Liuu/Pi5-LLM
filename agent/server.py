@@ -24,11 +24,19 @@ from .skills import execute, skill_descriptions
 
 DEFAULT_MODEL = "/home/student/dev_james/Pi5-LLM/models/Qwen_Qwen3.5-2B-Q4_K_M.gguf"
 
-PLANNER_SYSTEM = """You are an offline Pi 5 assistant.
+PLANNER_SYSTEM = """You are an offline Pi 5 assistant. /no_think
 Decide which skill to call NEXT to make progress on the user's request. You will be called multiple times; previous tool results appear in the conversation.
 
 Available skills:
 {skills}
+
+Rules:
+1. If a previous tool result in this conversation already contains the data needed to answer the user, reply {{"skill": "done", "args": {{}}}} — do NOT re-fetch the same file with another skill.
+2. Never call read_file on a .pdf path; use read_PDF.
+3. Never repeat a skill+args you have already called in this turn unless the previous result was an error you can fix by changing the args.
+4. A "truncated": true flag in a previous result is informational only. The truncated text is still useful — do NOT try to re-read the same file hoping for more.
+5. Paths are RELATIVE to the active sandbox. Use the entry's "name" verbatim, e.g. `"path": "report.pdf"`. NEVER use absolute paths like `/home/pi/...` or `C:\\Users\\...`. The "dir" field in list_dir output is a label, not a path you need to prepend.
+6. When write_file generates code, the "content" must be ONLY the implementation (function + imports if needed). Do NOT include `if __name__ == "__main__":` blocks, example calls, test prints, docstrings repeating the problem, or extra comments — those tend to overflow generation and break the JSON. Keep it minimal.
 
 When the user's request is fully addressed (all needed reads done, all needed writes done), reply:
 {{"skill": "done", "args": {{}}}}
@@ -38,8 +46,8 @@ Otherwise reply with ONLY a JSON object:
 
 Use {{}} for args if the skill takes none. Do not write any text outside the JSON."""
 
-REPLY_SYSTEM = """You are an offline Pi 5 assistant.
-Answer the user in 2-4 sentences using the tool result below. Stick to the data provided; if the user asks for something the tool result cannot deliver (e.g. writing a file when no write skill exists), say so briefly."""
+REPLY_SYSTEM = """You are an offline Pi 5 assistant. /no_think
+Answer the user using the tool result below. Stick to the data provided; if the user asks for something the tool result cannot deliver (e.g. writing a file when no write skill exists), say so briefly. Match the answer length to what the user asked for (e.g. a 200-word summary if requested)."""
 
 
 def stream_tokens(tokens) -> str:
@@ -54,17 +62,65 @@ def stream_tokens(tokens) -> str:
     return full
 
 
+def repair_json(raw: str) -> str | None:
+    """Best-effort fix for truncated tool-call JSON: count structural braces
+    while respecting string boundaries (escaped quotes / backslashes), then
+    append the missing close-string + close-braces. Returns None if no `{`
+    start was found."""
+    s = raw.strip()
+    start = s.find("{")
+    if start == -1:
+        return None
+    s = s[start:]
+    in_string = False
+    escape = False
+    open_braces = 0
+    for ch in s:
+        if escape:
+            escape = False
+            continue
+        if in_string and ch == "\\":
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if not in_string:
+            if ch == "{":
+                open_braces += 1
+            elif ch == "}":
+                open_braces -= 1
+    if not in_string and open_braces == 0:
+        return s
+    if in_string:
+        s += '"'
+    if open_braces > 0:
+        s += "}" * open_braces
+    return s
+
+
 def parse_tool_call(raw: str) -> tuple[str, dict] | None:
     raw = raw.strip()
     start = raw.find("{")
     end = raw.rfind("}")
-    if start == -1 or end == -1:
+    if start == -1:
         return None
-    try:
-        obj = json.loads(raw[start : end + 1])
-        return obj["skill"], obj.get("args", {}) or {}
-    except (json.JSONDecodeError, KeyError):
-        return None
+    # First try: balanced parse from first `{` to last `}` (cheap path).
+    if end > start:
+        try:
+            obj = json.loads(raw[start : end + 1])
+            return obj["skill"], obj.get("args", {}) or {}
+        except (json.JSONDecodeError, KeyError):
+            pass
+    # Fallback: repair truncated JSON (model emitted a stop token mid-string).
+    repaired = repair_json(raw)
+    if repaired is not None:
+        try:
+            obj = json.loads(repaired)
+            return obj["skill"], obj.get("args", {}) or {}
+        except (json.JSONDecodeError, KeyError):
+            return None
+    return None
 
 
 MAX_STEPS = 10

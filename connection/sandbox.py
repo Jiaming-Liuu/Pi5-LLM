@@ -18,6 +18,21 @@ from typing import Any, Protocol
 MAX_PC_BYTES = 20 * 1024 * 1024  # 20 MB cap on read_bytes through the bridge
 
 
+def _normalize_relative(path: str) -> str:
+    """Strip absolute-path prefixes so the LLM hallucinating `/home/pi/foo.pdf`
+    or `C:\\Users\\me\\foo.pdf` still resolves to `foo.pdf` inside the sandbox.
+
+    Sandbox paths are always relative to the active root.
+    """
+    if not path:
+        return path
+    p = path.replace("\\", "/")
+    # POSIX absolute or Windows drive-letter absolute → take basename
+    if p.startswith("/") or (len(p) >= 2 and p[1] == ":"):
+        return p.rsplit("/", 1)[-1]
+    return p
+
+
 class Sandbox(Protocol):
     label: str
     def list_dir(self, path: str) -> dict[str, Any]: ...
@@ -37,7 +52,8 @@ class LocalSandbox:
 
     def _resolve(self, path: str) -> Path:
         self.root.mkdir(parents=True, exist_ok=True)
-        candidate = (self.root / path).resolve() if not Path(path).is_absolute() else Path(path).resolve()
+        path = _normalize_relative(path)
+        candidate = (self.root / path).resolve()
         if self.root not in candidate.parents and candidate != self.root:
             raise PermissionError(f"path escapes sandbox {self.root}")
         return candidate
@@ -92,8 +108,9 @@ class LocalSandbox:
 
 
 def _safe_path(path: str) -> str:
-    """Reject path traversal before sending to the browser."""
-    parts = [p for p in path.replace("\\", "/").split("/") if p and p != "."]
+    """Normalize then reject path traversal before sending to the browser."""
+    path = _normalize_relative(path)
+    parts = [p for p in path.split("/") if p and p != "."]
     if any(p == ".." for p in parts):
         raise PermissionError(f"path contains '..': {path}")
     return "/".join(parts)

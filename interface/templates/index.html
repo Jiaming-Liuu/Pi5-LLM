@@ -217,6 +217,12 @@
     margin-bottom: 0.9rem;
     font-size: 0.92rem;
   }
+  .turn-time {
+    color: var(--muted);
+    font-size: 0.78rem;
+    margin: 0.2rem 0 0.9rem;
+    opacity: 0.8;
+  }
   .spinner {
     display: inline-block;
     width: 0.95em;
@@ -545,6 +551,13 @@ async function send(message) {
         } else if (evt === 'done') {
           hideThinking();
           status.textContent = 'idle';
+          if (data.elapsed != null) {
+            const t = document.createElement('div');
+            t.className = 'turn-time';
+            t.textContent = `thought for ${data.elapsed}s`;
+            log.appendChild(t);
+            log.scrollTop = log.scrollHeight;
+          }
           refreshSandbox();
         }
       }
