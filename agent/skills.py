@@ -17,7 +17,7 @@ from typing import Any, Callable
 from connection.sandbox import LocalSandbox, Sandbox
 
 SANDBOX_ROOT = Path(os.environ.get("PI5_SANDBOX", Path.home() / "pi5_sandbox")).resolve()
-PDF_TOKEN_BUDGET = 700  # ~chars*0.25; we cap by characters as a proxy
+PDF_TOKEN_BUDGET = 3000  # ~chars*0.25; we cap by characters as a proxy
 PDF_CHAR_BUDGET = PDF_TOKEN_BUDGET * 4
 
 _active_sandbox: Sandbox = LocalSandbox(SANDBOX_ROOT)

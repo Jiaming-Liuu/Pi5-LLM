@@ -46,6 +46,17 @@ def sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
 
 
+SSE_HEADERS = {
+    "Cache-Control": "no-cache, no-transform",
+    "X-Accel-Buffering": "no",
+    "Connection": "keep-alive",
+}
+
+
+def sse_response(generator):
+    return Response(stream_with_context(generator), mimetype="text/event-stream", headers=SSE_HEADERS)
+
+
 def log(msg: str) -> None:
     """Timestamped debug line to stderr (visible in the terminal running the server)."""
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", file=sys.stderr, flush=True)
@@ -253,7 +264,7 @@ def run_turn(user_msg: str):
     raw_stream = agent.stream(
         system=REPLY_SYSTEM,
         history=reply_view,
-        max_tokens=400,
+        max_tokens=800,
         temperature=0.3,
     )
     for token in strip_think(raw_stream):
@@ -275,8 +286,9 @@ def run_turn(user_msg: str):
     state["history"].append({"role": "assistant", "content": full.strip()})
     if len(state["history"]) > HISTORY_LIMIT:
         state["history"] = state["history"][-HISTORY_LIMIT:]
-    log(f"=== TURN DONE in {time.perf_counter() - turn_t0:.1f}s | history={len(state['history'])} msgs")
-    yield sse("done", {})
+    elapsed = time.perf_counter() - turn_t0
+    log(f"=== TURN DONE in {elapsed:.1f}s | history={len(state['history'])} msgs")
+    yield sse("done", {"elapsed": round(elapsed, 1)})
 
 
 @app.route("/")
@@ -295,7 +307,7 @@ def chat():
         with state["lock"]:
             yield from run_turn(msg)
 
-    return Response(stream_with_context(stream()), mimetype="text/event-stream")
+    return sse_response(stream())
 
 
 @app.route("/reset", methods=["POST"])
@@ -417,10 +429,12 @@ def fs_poll():
     def gen():
         try:
             yield sse("hello", {})
+            tick = 0
             while True:
-                op = bridge.next_op(block_timeout=15.0)
+                op = bridge.next_op(block_timeout=3.0)
                 if op is None:
-                    yield ": ping\n\n"   # SSE comment heartbeat
+                    tick += 1
+                    yield sse("ping", {"t": tick})
                     continue
                 op_id, name, args = op
                 yield sse("fs_op", {"id": op_id, "op": name, "args": args})
@@ -428,7 +442,7 @@ def fs_poll():
             log("[bridge] consumer disconnected")
             bridge.disconnect()
 
-    return Response(stream_with_context(gen()), mimetype="text/event-stream")
+    return sse_response(gen())
 
 
 @app.route("/fs/result/<op_id>", methods=["POST"])
